@@ -1,29 +1,28 @@
 class_name Player
-extends KinematicBody
+extends CharacterBody3D
 
 # Convenience Nodes
-onready var cam_helper := $CamHelper
-onready var hook := $CamHelper/Hook
-onready var line_helper := $LineHelper
-onready var line := $LineHelper/Line
-export var grapple_point : NodePath 
+@onready var cam_helper := $CamHelper
+@onready var hook := $CamHelper/Hook
+@onready var line_helper := $LineHelper
+@onready var line := $LineHelper/Line
+@export var grapple_point : NodePath 
 
 # Player Controller
-export var MOUSE_SENSITIVITY := .001
-export var speed := 4.0
-export var air_speed := .25
-export var friction := .25  # Higher -> more friction
-export var jump_strength := 32.0
-var velocity := Vector3()
+@export var MOUSE_SENSITIVITY := .001
+@export var speed := 4.0
+@export var air_speed := .25
+@export var friction := .25  # Higher -> more friction
+@export var jump_strength := 32.0
 
 # Grappling
-export var max_grapple_speed := 2.75 # Self explanatory
-export var grapple_speed := .5
+@export var max_grapple_speed := 2.75 # Self explanatory
+@export var grapple_speed := .5
 """ Also known as the spring constant, this is how stiff your rope is. 
 	For this demo, doesn't actually do too much, but you can play with
 	the numbers
 """
-export var rest_length := 1.0
+@export var rest_length := 1.0
 """How far the player should rest from the grapple point"""
 var hooked := false
 var grapple_position := Vector3()
@@ -44,7 +43,7 @@ func _physics_process(delta: float) -> void:
 		Engine.time_scale = 1
 		MOUSE_SENSITIVITY = .001
 	if Input.is_action_just_pressed("ui_home"):
-		translation = Vector3(0, 1, 0)
+		position = Vector3(0, 1, 0)
 
 
 # HOOK STUFF ---------------------------------------------------------
@@ -71,7 +70,7 @@ func check_hook_activation() -> void:
 
 # Adds to player velocity and returns the length of the hook rope
 func calculate_path() -> float:
-	var player2hook := grapple_position - translation # vector from player to hook
+	var player2hook := grapple_position - position # vector from player to hook
 	var length := player2hook.length()
 	if hooked:
 		# if we more than 4 away from line, don't dampen speed as much
@@ -97,12 +96,12 @@ func calculate_path() -> float:
 func draw_hook(length: float) -> void:
 	line_helper.look_at(grapple_position, Vector3.UP)
 	line.height = length
-	line.translation.z = length / -2
+	line.position.z = length / -2
 
 func look_for_point() -> void:
 	var grapple_pt := get_node_or_null(grapple_point)
 	if grapple_pt and hook.is_colliding():
-		grapple_pt.translation = hook.get_collision_point()
+		grapple_pt.position = hook.get_collision_point()
 
 
 # CHARACTER CONTROLLER -------------------------------------------------
@@ -135,13 +134,20 @@ func move(delta: float) -> void:
 	# Move player using velocity, we want to have the UP vector as our up,
 	# the false at the end allows us to have better collisions
 	# with Rigidbodies, the rest are default arguments
-	velocity = move_and_slide(velocity, Vector3.UP, false, 4, .8, false)
+	set_velocity(velocity)
+	set_up_direction(Vector3.UP)
+	set_floor_stop_on_slope_enabled(false)
+	set_max_slides(4)
+	set_floor_max_angle(.8)
+	# TODOConverter3To4 infinite_inertia were removed in Godot 4 - previous value `false`
+	move_and_slide()
+	velocity = velocity
 
 # Since we want better collisions, we have to do a lil work
 func collide_with_rigidbodies() -> void:
-	for index in get_slide_count():
+	for index in get_slide_collision_count():
 		var collision := get_slide_collision(index)
-		if collision.collider is RigidBody:
+		if collision.collider is RigidBody3D:
 			collision.collider.apply_central_impulse(
 				-collision.normal * .05 * velocity.length()
 			)
@@ -162,7 +168,7 @@ func _input(event: InputEvent) -> void:
 		handle_mouse_capture()
 	# Fullscreen
 	elif event.is_action_pressed("fullscreen"):
-		OS.window_fullscreen = !OS.window_fullscreen
+		get_window().mode = Window.MODE_EXCLUSIVE_FULLSCREEN if (!((get_window().mode == Window.MODE_EXCLUSIVE_FULLSCREEN) or (get_window().mode == Window.MODE_FULLSCREEN))) else Window.MODE_WINDOWED
 	
 	# Move camera
 	if event is InputEventMouseMotion and Input.get_mouse_mode() == Input.MOUSE_MODE_CAPTURED:
